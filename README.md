@@ -1,1 +1,2 @@
-# dapperc20
+DAPP ERC20 token contract
+
