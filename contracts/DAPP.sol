@@ -94,7 +94,7 @@ contract DappToken is IERC20 {
 
     string public name;
     string public symbol;
-    uint8 public decimals;
+    uint8 immutable public decimals;
     
     address public ownerAddress;
     address public bridgeContractAddress;
