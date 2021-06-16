@@ -94,7 +94,7 @@ contract DappToken is IERC20 {
 
     string public name;
     string public symbol;
-    uint8 public decimals;
+    uint8 immutable public decimals;
     
     address public ownerAddress;
     address public bridgeContractAddress;
@@ -176,10 +176,9 @@ contract DappToken is IERC20 {
         require(_bridgeContractAddress != address(0), "Bridge address is zero address");
         bridgeContractAddress = _bridgeContractAddress;
     }
+    
     function transferOwnership(address _newOwner) public onlyOwner() {
         require(_newOwner != address(0), "Owner address is zero address");
         ownerAddress = _newOwner;
     }
-
 }
-
