@@ -1,185 +1,66 @@
-//SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.7.6;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.0;
 
-library SafeMath {
-  
-    function add(uint256 a, uint256 b) internal pure returns (uint256) {
-        uint256 c = a + b;
-        require(c >= a, "SafeMath: addition overflow");
+import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
-        return c;
-    }
-
-    function add(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        uint256 c = a + b;
-        require(c >= a, errorMessage);
-
-        return c;
-    }
- 
-    function sub(uint256 a, uint256 b) internal pure returns (uint256) {
-        return sub(a, b, "SafeMath: subtraction underflow");
-    }
-
-    function sub(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        require(b <= a, errorMessage);
-        uint256 c = a - b;
-
-        return c;
-    }
-
-    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-       
-        if (a == 0) {
-            return 0;
-        }
-
-        uint256 c = a * b;
-        require(c / a == b, "SafeMath: multiplication overflow");
-
-        return c;
-    }
-
-    function mul(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-   
-        if (a == 0) {
-            return 0;
-        }
-
-        uint256 c = a * b;
-        require(c / a == b, errorMessage);
-
-        return c;
-    }
-  
-    function div(uint256 a, uint256 b) internal pure returns (uint256) {
-        return div(a, b, "SafeMath: division by zero");
-    }
-
-    function div(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        require(b > 0, errorMessage);
-        uint256 c = a / b;
-    
-        return c;
-    }
-  
-    function mod(uint256 a, uint256 b) internal pure returns (uint256) {
-        return mod(a, b, "SafeMath: modulo by zero");
-    }
- 
-    function mod(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        require(b != 0, errorMessage);
-        return a % b;
-    }
-}
-
-interface IERC20 {
-    function balanceOf(address) external view returns (uint256);
-    function mint(address, uint256) external;
-    function burn(uint256) external;
-    function transfer(address, uint256) external returns (bool);
-    function approve(address, uint256) external returns (bool);
-    function transferFrom(address, address, uint256) external returns (bool);
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-}
-
-contract DappToken is IERC20 {
-    using SafeMath for uint256;
-
-    mapping (address => uint256) private balances;
-    mapping (address => mapping (address => uint256)) private allowances;
-
-    uint256 public totalSupply;
-
-    string public name;
-    string public symbol;
-    uint8 public decimals;
+contract DAPP is ERC20 {
     
     address public ownerAddress;
-    address public bridgeContractAddress;
+    address public minter;
+    bytes32 private immutable _PERMIT_TYPEHASH = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    bytes32 public DOMAIN_SEPARATOR;
+    mapping(address => uint) public nonces;
 
-    modifier onlyBridge {
-        require(msg.sender == bridgeContractAddress, "Can be called only by bridge Contract");   
-        _;
-    }
-
-    modifier onlyOwner {
-        require(msg.sender == ownerAddress, "Can be called only by owner");   
-        _;
-    }
-
-    constructor(string memory _name, string memory _symbol, address _bridgeContractAddress, address _owner) {
-        name = _name;
-        symbol = _symbol;
-        decimals = 4;
+    constructor(address _owner, address _minter) ERC20("DAPP TOKEN", "DAPP") {
         ownerAddress = _owner;
-        bridgeContractAddress = _bridgeContractAddress;
-    }
-
-    function balanceOf(address account) public view override returns (uint256) {
-        return balances[account];
-    }
-
-    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
-        _transfer(msg.sender, recipient, amount);
-        return true;
-    }
-
-    function allowance(address owner, address spender) public view virtual returns (uint256) {
-        return allowances[owner][spender];
-    }
-   
-    function approve(address spender, uint256 amount) public virtual override returns (bool) {
-        _approve(msg.sender, spender, amount);
-        return true;
+        minter = _minter;
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'),
+                keccak256(bytes(name())),
+                keccak256(bytes('1')),
+                1,
+                address(this)
+            )
+        );
     }
     
-    function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool) {
-        _transfer(sender, recipient, amount);
-        _approve(sender, msg.sender, allowances[sender][msg.sender].sub(amount, "ERC20: transfer amount exceeds allowance"));
-        return true;
+    function mint(address account, uint _amount) public {
+        require(msg.sender == minter, 'Only minter can mint');
+        _mint(account, _amount);
     }
-
-    function _transfer(address sender, address recipient, uint256 amount) internal virtual {
-        require(sender != address(0), "ERC20: transfer from the zero address");
-        require(recipient != address(0), "ERC20: transfer to the zero address");
-
-        balances[sender] = balances[sender].sub(amount, "ERC20: transfer amount exceeds balance");
-        balances[recipient] = balances[recipient].add(amount);
-        emit Transfer(sender, recipient, amount);
+       
+    function burn(address account, uint _amount) public {
+        require(account == msg.sender, 'Cant burn others tokens');
+        _burn(account, _amount);
     }
-
-    function mint(address account, uint256 amount) public override onlyBridge() {
-        require(account != address(0), "ERC20: mint to the zero address");
-
-        totalSupply = totalSupply.add(amount);
-        balances[account] = balances[account].add(amount);
-        emit Transfer(address(0), account, amount);
+    
+    function decimals() public view virtual override returns (uint8) {
+        return 4;
     }
-
-    function burn(uint256 amount) public override {
-        balances[msg.sender] = balances[msg.sender].sub(amount, "ERC20: burn amount exceeds balance");
-        totalSupply = totalSupply.sub(amount);
-        emit Transfer(msg.sender, address(0), amount);
+ 
+    function transferOwnership(address _owner) public{
+        require(msg.sender == ownerAddress, 'Only Owner can call this');
+        ownerAddress = _owner;
     }
-
-    function _approve(address owner, address spender, uint256 amount) internal virtual {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(spender != address(0), "ERC20: approve to the zero address");
-
-        allowances[owner][spender] = amount;
-        emit Approval(owner, spender, amount);
+    
+     function changeMinter(address _minter) public{
+        require(msg.sender == ownerAddress, 'Only Owner can call this');
+        minter = _minter;
     }
-
-    function updateBridgeContractAddress(address _bridgeContractAddress) public onlyOwner() {
-        require(_bridgeContractAddress != address(0), "Bridge address is zero address");
-        bridgeContractAddress = _bridgeContractAddress;
+    
+     function permit(address owner, address spender, uint value, uint deadline, uint8 v, bytes32 r, bytes32 s) external {
+        require(deadline >= block.timestamp, 'DEADLINE EXPIRED');
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                '\x19\x01',
+                DOMAIN_SEPARATOR,
+                keccak256(abi.encode(_PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))
+            )
+        );
+        address recoveredAddress = ECDSA.recover(digest, v, r, s);
+        require(recoveredAddress != address(0) && recoveredAddress == owner, 'INVALID_SIGNATURE');
+        _approve(owner, spender, value);
     }
-    function transferOwnership(address _newOwner) public onlyOwner() {
-        require(_newOwner != address(0), "Owner address is zero address");
-        ownerAddress = _newOwner;
-    }
-
 }
-
